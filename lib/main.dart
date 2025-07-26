@@ -1,74 +1,130 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'screens/home_screen.dart';
-import 'providers/food_recognition_provider.dart';
-import 'providers/camera_provider.dart';
+import 'package:camera/camera.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  
-  // Set preferred orientations
-  SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
-  
-  runApp(const GlucoSnapAIApp());
+  runApp(MyApp());
 }
 
-class GlucoSnapAIApp extends StatelessWidget {
-  const GlucoSnapAIApp({super.key});
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Food Scanner',
+      home: FoodScannerApp(),
+    );
+  }
+}
+
+class FoodScannerApp extends StatefulWidget {
+  @override
+  _FoodScannerAppState createState() => _FoodScannerAppState();
+}
+
+class _FoodScannerAppState extends State<FoodScannerApp> {
+  CameraController? controller;
+  bool isAnalyzing = false;
+  String result = '';
+
+  @override
+  void initState() {
+    super.initState();
+    initCamera();
+  }
+
+  initCamera() async {
+    await Permission.camera.request();
+    final cameras = await availableCameras();
+    controller = CameraController(cameras[0], ResolutionPreset.medium);
+    await controller!.initialize();
+    setState(() {});
+  }
+
+  takePhoto() async {
+    if (controller == null) return;
+    
+    setState(() {
+      isAnalyzing = true;
+    });
+
+    final image = await controller!.takePicture();
+    
+    // Fake AI analysis
+    await Future.delayed(Duration(seconds: 2));
+    
+    setState(() {
+      isAnalyzing = false;
+      result = 'This looks like CANDY 🍭\n\nTry JAGGERY instead!\n- Natural sweetener\n- Contains iron\n- Better for health';
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => CameraProvider()),
-        ChangeNotifierProvider(create: (_) => FoodRecognitionProvider()),
-      ],
-      child: MaterialApp(
-        title: 'GlucoSnapAI',
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF667EEA),
-            brightness: Brightness.light,
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Food Scanner'),
+        backgroundColor: Colors.blue,
+      ),
+      body: Column(
+        children: [
+          // Camera or Result
+          Expanded(
+            child: result.isEmpty 
+              ? (controller?.value.isInitialized ?? false)
+                  ? CameraPreview(controller!)
+                  : Center(child: CircularProgressIndicator())
+              : Container(
+                  padding: EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.restaurant, size: 100, color: Colors.orange),
+                      SizedBox(height: 20),
+                      Text(
+                        result,
+                        style: TextStyle(fontSize: 18),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
           ),
-          textTheme: GoogleFonts.interTextTheme(),
-          appBarTheme: AppBarTheme(
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            systemOverlayStyle: SystemUiOverlayStyle.light,
-            titleTextStyle: GoogleFonts.inter(
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
-            ),
+          
+          // Buttons
+          Container(
+            padding: EdgeInsets.all(20),
+            child: result.isEmpty
+              ? ElevatedButton(
+                  onPressed: isAnalyzing ? null : takePhoto,
+                  child: isAnalyzing 
+                    ? Text('Analyzing...')
+                    : Text('SCAN FOOD'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    padding: EdgeInsets.symmetric(horizontal: 50, vertical: 15),
+                  ),
+                )
+              : ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      result = '';
+                    });
+                  },
+                  child: Text('SCAN AGAIN'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    padding: EdgeInsets.symmetric(horizontal: 50, vertical: 15),
+                  ),
+                ),
           ),
-          elevatedButtonTheme: ElevatedButtonThemeData(
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(25),
-              ),
-              textStyle: GoogleFonts.inter(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          cardTheme: CardTheme(
-            elevation: 8,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-          ),
-        ),
-        home: const HomeScreen(),
+        ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    controller?.dispose();
+    super.dispose();
   }
 }
